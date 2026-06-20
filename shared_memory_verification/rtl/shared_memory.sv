@@ -215,6 +215,12 @@ module shared_memory (
     wire                  read_active;
     wire                  read_done_pulse;
 
+    wire sel_fifo_empty = (interface_select == SEL_FAC)  ? fac_fifo_empty  :
+                          (interface_select == SEL_WIFI) ? wifi_fifo_empty :
+                          (interface_select == SEL_BT)   ? bt_fifo_empty   : 1'b1;
+
+    wire fifo_pending = (interface_select != SEL_INVALID) && !sel_fifo_empty;
+
     interface_mux u_interface_mux (
         .interface_select (interface_select),
         .fac_fifo_empty   (fac_fifo_empty),
@@ -297,6 +303,7 @@ module shared_memory (
         .clk              (mem_clk),
         .rst_n            (reset_n),
         .interface_select (interface_select),
+        .fifo_pending     (fifo_pending),
         .write_active     (write_active),
         .write_done_pulse (write_done_pulse),
         .read_active      (read_active),

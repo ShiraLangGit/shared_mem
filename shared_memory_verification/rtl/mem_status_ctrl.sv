@@ -1,4 +1,5 @@
 // memory_status FSM: IDLE / WRITING / READING / ERROR
+// Stays in WRITING until the selected interface FIFO is fully drained (CDC-safe).
 
 `include "shared_memory_defs.svh"
 
@@ -7,6 +8,7 @@ module mem_status_ctrl (
     input  wire       rst_n,
 
     input  wire [1:0] interface_select,
+    input  wire       fifo_pending,
 
     input  wire       write_active,
     input  wire       write_done_pulse,
@@ -27,6 +29,8 @@ module mem_status_ctrl (
                        wifi_write_error ||
                        bt_write_error;
 
+    wire write_busy = write_active || fifo_pending;
+
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             memory_status <= STATUS_IDLE;
@@ -35,7 +39,7 @@ module mem_status_ctrl (
                 STATUS_IDLE: begin
                     if (error_event)
                         memory_status <= STATUS_ERROR;
-                    else if (write_active || write_done_pulse)
+                    else if (write_busy || write_done_pulse)
                         memory_status <= STATUS_WRITING;
                     else if (read_active)
                         memory_status <= STATUS_READING;
@@ -44,7 +48,7 @@ module mem_status_ctrl (
                 STATUS_WRITING: begin
                     if (error_event)
                         memory_status <= STATUS_ERROR;
-                    else if (write_done_pulse && !write_active)
+                    else if (!write_busy && !write_active)
                         memory_status <= STATUS_IDLE;
                     else if (read_active)
                         memory_status <= STATUS_READING;
@@ -55,7 +59,7 @@ module mem_status_ctrl (
                         memory_status <= STATUS_ERROR;
                     else if (read_done_pulse && !read_active)
                         memory_status <= STATUS_IDLE;
-                    else if (write_active)
+                    else if (write_busy || write_active)
                         memory_status <= STATUS_WRITING;
                 end
 

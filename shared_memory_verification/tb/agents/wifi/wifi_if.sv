@@ -9,7 +9,7 @@ interface wifi_if (input logic clk);
     logic        ready;
 
     clocking drv_cb @(posedge clk);
-        default input #1step output negedge;
+        default input #1step output #1step;
         output wr_en, data_valid, start_addr, data;
         input  ready;
     endclocking

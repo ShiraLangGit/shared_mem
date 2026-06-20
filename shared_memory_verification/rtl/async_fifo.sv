@@ -1,4 +1,5 @@
 // Asynchronous FIFO with Gray-code pointers and double-flop CDC synchronizers
+// Read data is registered on rclk for stable capture by write_ctrl.
 
 module async_fifo #(
     parameter DATA_W = 64,
@@ -33,6 +34,8 @@ module async_fifo #(
     reg [PTR_W-1:0] rptr_gray_wclk1;
     reg [PTR_W-1:0] rptr_gray_wclk2;
 
+    reg [DATA_W-1:0] rdata_r;
+
     wire [PTR_W-1:0] wptr_bin_next  = wptr_bin + {{(PTR_W-1){1'b0}}, 1'b1};
     wire [PTR_W-1:0] rptr_bin_next  = rptr_bin + {{(PTR_W-1){1'b0}}, 1'b1};
 
@@ -42,18 +45,11 @@ module async_fifo #(
     wire w_push = w_en && !w_full;
     wire r_pop  = r_en && !r_empty;
 
-    function automatic [PTR_W-1:0] gray2bin(input [PTR_W-1:0] gray);
-        integer i;
-        gray2bin[PTR_W-1] = gray[PTR_W-1];
-        for (i = PTR_W - 2; i >= 0; i = i - 1)
-            gray2bin[i] = gray2bin[i+1] ^ gray[i];
-    endfunction
-
     assign w_full  = (wptr_gray_next == {~rptr_gray_wclk2[PTR_W-1:PTR_W-2],
                                          rptr_gray_wclk2[PTR_W-3:0]});
     assign r_empty = (rptr_gray == wptr_gray_rclk2);
 
-    assign rdata = mem[rptr_bin[ADDR_W-1:0]];
+    assign rdata = rdata_r;
 
     // Write clock domain
     always @(posedge wclk or negedge w_rst_n) begin
@@ -67,14 +63,20 @@ module async_fifo #(
         end
     end
 
-    // Read clock domain
+    // Read clock domain — register FIFO output for stable downstream capture
     always @(posedge rclk or negedge r_rst_n) begin
         if (!r_rst_n) begin
             rptr_bin  <= {PTR_W{1'b0}};
             rptr_gray <= {PTR_W{1'b0}};
-        end else if (r_pop) begin
-            rptr_bin  <= rptr_bin_next;
-            rptr_gray <= rptr_gray_next;
+            rdata_r   <= {DATA_W{1'b0}};
+        end else begin
+            if (r_pop) begin
+                rptr_bin  <= rptr_bin_next;
+                rptr_gray <= rptr_gray_next;
+            end
+
+            if (!r_empty)
+                rdata_r <= mem[rptr_bin[ADDR_W-1:0]];
         end
     end
 

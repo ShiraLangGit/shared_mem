@@ -1,6 +1,6 @@
 // Dual-port RAM: port A write (1 cc), port B read (2 cc pipeline)
 
-`include "shared_memory_defs.svh"
+import shared_memory_pkg::*;
 
 module dual_port_ram (
     input  wire                  clk,

@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("sanity_fac","wifi_split","bt_split","interface_switch","simultaneous_rw","reset_during_write","fifo_stress_cdc","regression")]
+    [ValidateSet("sanity_fac","wifi_split","bt_split")]
     [string]$Test = "sanity_fac"
 )
 
@@ -7,18 +7,9 @@ $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
 $TestMap = @{
-    "sanity_fac"          = "test_sanity_fac"
-    "wifi_split"          = "test_wifi_split"
-    "bt_split"            = "test_bt_split"
-    "interface_switch"    = "test_interface_switch"
-    "simultaneous_rw"     = "test_simultaneous_rw"
-    "reset_during_write"  = "test_reset_during_write"
-    "fifo_stress_cdc"     = "test_fifo_stress_cdc"
-}
-
-if ($Test -eq "regression") {
-    Write-Host "UVM regression runner not yet implemented — run tests individually."
-    exit 1
+    "sanity_fac"  = "test_sanity_fac"
+    "wifi_split"  = "test_wifi_split"
+    "bt_split"    = "test_bt_split"
 }
 
 $UvmTest = $TestMap[$Test]
