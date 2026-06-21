@@ -10,6 +10,7 @@ package shared_memory_env_pkg;
 
     `include "shared_memory_env_cfg.sv"
     `include "shared_memory_scoreboard.sv"
+    `include "shared_memory_coverage.sv"
     `include "shared_memory_env.sv"
 
 endpackage
