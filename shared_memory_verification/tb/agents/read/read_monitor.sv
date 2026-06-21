@@ -18,30 +18,27 @@ class read_monitor extends uvm_monitor;
     endfunction
 
     task run_phase(uvm_phase phase);
-        // Pending-address FIFO — one entry per o_rd_en assertion.
-        // read_ctrl pipelines o_rd_en through rd_en_d1 and rd_en_d2 (registered delays).
-        // o_data_valid is asserted exactly 2 mem_clk cycles after the original o_rd_en.
-        //
-        //   Cycle N   : o_rd_en=1, capture o_addr  -> push addr onto pending_q
-        //   Cycle N+1 : rd_en_d1=1  (internal)
-        //   Cycle N+2 : rd_en_d2=1  -> o_data_valid=1, o_data valid; pop addr, emit txn
-        bit [31:0] pending_q[$];
+        bit        rd_en_prev;
         read_seq_item txn;
 
         forever begin
-            @(vif.mon_cb);
+            @(posedge vif.clk);
 
-            if (vif.mon_cb.rd_en) begin
-                pending_q.push_back(vif.mon_cb.addr);
-            end
+            if (vif.rd_en && !rd_en_prev) begin
+                bit [31:0] addr = vif.addr;
 
-            if (vif.mon_cb.data_valid && pending_q.size() > 0) begin
+                // rd_en -> ram_rd_en (reg) -> 2-cycle RAM -> o_data on rd_en_d4
+                do @(posedge vif.clk); while (!vif.data_valid);
+                @(posedge vif.clk);
+
                 txn = read_seq_item::type_id::create("txn");
-                txn.addr       = pending_q.pop_front();
-                txn.data       = vif.mon_cb.data;
+                txn.addr       = addr;
+                txn.data       = vif.data;
                 txn.beat_count = 1;
                 ap.write(txn);
             end
+
+            rd_en_prev = vif.rd_en;
         end
     endtask
 

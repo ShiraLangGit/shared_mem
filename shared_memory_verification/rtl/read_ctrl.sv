@@ -1,6 +1,7 @@
 // Read port control @ mem_clk — 2-cycle RAM read latency, burst auto-increment
+// o_data captured on rd_en_d4: ram_rd_en is registered (+1), dual_port rd_data (+2)
 
-`include "shared_memory_defs.svh"
+import shared_memory_pkg::*;
 
 module read_ctrl (
     input  wire                  clk,
@@ -26,10 +27,12 @@ module read_ctrl (
     reg [31:0] next_addr;
     reg        rd_en_d1;
     reg        rd_en_d2;
+    reg        rd_en_d3;
+    reg        rd_en_d4;
     reg        was_reading;
     reg        read_done_r;
 
-    assign read_active     = in_burst || rd_en_d1 || rd_en_d2;
+    assign read_active     = in_burst || rd_en_d1 || rd_en_d2 || rd_en_d3 || rd_en_d4;
     assign read_done_pulse = read_done_r;
 
     always @(posedge clk or negedge rst_n) begin
@@ -43,6 +46,8 @@ module read_ctrl (
             next_addr    <= 32'h0;
             rd_en_d1     <= 1'b0;
             rd_en_d2     <= 1'b0;
+            rd_en_d3     <= 1'b0;
+            rd_en_d4     <= 1'b0;
             was_reading  <= 1'b0;
             read_done_r  <= 1'b0;
         end else begin
@@ -52,6 +57,8 @@ module read_ctrl (
 
             rd_en_d1 <= rd_en;
             rd_en_d2 <= rd_en_d1;
+            rd_en_d3 <= rd_en_d2;
+            rd_en_d4 <= rd_en_d3;
 
             if (rd_en) begin
                 ram_rd_en   <= 1'b1;
@@ -62,18 +69,18 @@ module read_ctrl (
                 o_ready     <= 1'b0;
             end
 
-            if (rd_en_d2) begin
+            if (rd_en_d4) begin
                 o_data       <= ram_rd_data;
                 o_data_valid <= 1'b1;
             end
 
-            if (in_burst && !rd_en && !rd_en_d1 && !rd_en_d2) begin
+            if (in_burst && !rd_en && !rd_en_d1 && !rd_en_d2 && !rd_en_d3 && !rd_en_d4) begin
                 in_burst    <= 1'b0;
                 o_ready     <= 1'b1;
                 read_done_r <= was_reading;
             end
 
-            was_reading <= in_burst || rd_en || rd_en_d1 || rd_en_d2;
+            was_reading <= in_burst || rd_en || rd_en_d1 || rd_en_d2 || rd_en_d3 || rd_en_d4;
         end
     end
 

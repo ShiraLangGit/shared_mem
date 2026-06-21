@@ -16,30 +16,35 @@ class read_driver extends uvm_driver #(read_seq_item);
     endfunction
 
     task automatic reset_signals();
-        @(vif.drv_cb);
-        vif.drv_cb.rd_en <= 1'b0;
-        vif.drv_cb.addr  <= '0;
+        @(posedge vif.clk);
+        vif.rd_en = 1'b0;
+        vif.addr  = '0;
     endtask
 
     task automatic wait_for_ready();
-        @(vif.drv_cb);
-        while (!vif.drv_cb.ready) begin
-            @(vif.drv_cb);
+        @(posedge vif.clk);
+        while (!vif.ready) begin
+            @(posedge vif.clk);
         end
     endtask
 
-    // read_ctrl RTL: assert o_rd_en for one mem_clk per beat; addr auto-increments in burst.
-    task automatic drive_beat(
-        input bit [31:0] beat_addr,
-        input bit        is_first_beat
-    );
+    // One-cycle rd_en pulse; monitor handles data sampling (driver does not read data).
+    task automatic drive_beat(input bit [31:0] beat_addr);
         wait_for_ready();
 
-        vif.drv_cb.rd_en <= 1'b1;
-        if (is_first_beat) begin
-            vif.drv_cb.addr <= beat_addr;
-        end
-        @(vif.drv_cb);
+        @(negedge vif.clk);
+        vif.rd_en = 1'b1;
+        vif.addr  = beat_addr;
+
+        @(posedge vif.clk);
+
+        @(negedge vif.clk);
+        vif.rd_en = 1'b0;
+
+        // Wait until read_ctrl pipeline completes before next transaction
+        do @(posedge vif.clk); while (!vif.data_valid);
+        @(posedge vif.clk);
+        wait_for_ready();
     endtask
 
     task drive_item(read_seq_item req);
@@ -48,11 +53,8 @@ class read_driver extends uvm_driver #(read_seq_item);
         `uvm_info("READ_DRV", $sformatf("Driving read %s", req.convert2string()), UVM_MEDIUM)
 
         for (i = 0; i < req.beat_count; i++) begin
-            drive_beat(req.addr + i, (i == 0));
+            drive_beat(req.addr + i);
         end
-
-        @(vif.drv_cb);
-        vif.drv_cb.rd_en <= 1'b0;
     endtask
 
     task run_phase(uvm_phase phase);

@@ -63,7 +63,7 @@ module async_fifo #(
         end
     end
 
-    // Read clock domain — register FIFO output for stable downstream capture
+    // Read clock domain — keep rdata_r fresh whenever FIFO is non-empty
     always @(posedge rclk or negedge r_rst_n) begin
         if (!r_rst_n) begin
             rptr_bin  <= {PTR_W{1'b0}};
@@ -75,8 +75,11 @@ module async_fifo #(
                 rptr_gray <= rptr_gray_next;
             end
 
-            if (!r_empty)
+            // Prefetch next beat on pop; otherwise refresh head entry
+            if (!r_empty && !r_pop)
                 rdata_r <= mem[rptr_bin[ADDR_W-1:0]];
+            else if (r_pop && !r_empty)
+                rdata_r <= mem[rptr_bin_next[ADDR_W-1:0]];
         end
     end
 
