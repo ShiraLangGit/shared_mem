@@ -1,0 +1,50 @@
+# DVT build file — shared memory UVM project
+# Open this folder in DVT: File > Open Project > shared_memory_verification
+
+-uvm
+-timescale 1ns/1ps
+-top shared_memory_tb
+
++incdir+rtl
++incdir+tb/agents/fac
++incdir+tb/agents/wifi
++incdir+tb/agents/bt
++incdir+tb/agents/read
++incdir+tb/interfaces
++incdir+tb/envs
++incdir+tb/seqs
++incdir+tb/tests
+
+# Packages (compile first)
+rtl/shared_memory_pkg.sv
+tb/agents/fac/fac_agent_pkg.sv
+tb/agents/wifi/wifi_agent_pkg.sv
+tb/agents/bt/bt_agent_pkg.sv
+tb/agents/read/read_agent_pkg.sv
+tb/envs/shared_memory_env_pkg.sv
+tb/seqs/fac_seq_pkg.sv
+tb/seqs/wifi_seq_pkg.sv
+tb/seqs/bt_seq_pkg.sv
+tb/seqs/read_seq_pkg.sv
+tb/seqs/common_seq_pkg.sv
+tb/tests/shared_memory_test_pkg.sv
+
+# RTL
+rtl/async_fifo.sv
+rtl/bt_write_if.sv
+rtl/fac_write_if.sv
+rtl/wifi_write_if.sv
+rtl/dual_port_ram.sv
+rtl/interface_mux.sv
+rtl/mem_status_ctrl.sv
+rtl/read_ctrl.sv
+rtl/shared_memory.sv
+rtl/write_ctrl.sv
+
+# Interfaces + top
+tb/agents/fac/fac_if.sv
+tb/agents/wifi/wifi_if.sv
+tb/agents/bt/bt_if.sv
+tb/agents/read/read_if.sv
+tb/interfaces/ctrl_if.sv
+tb/top/shared_memory_tb.sv
