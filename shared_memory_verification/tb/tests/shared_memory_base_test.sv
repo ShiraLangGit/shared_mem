@@ -16,7 +16,7 @@ class shared_memory_base_test extends uvm_test;
         if (!uvm_config_db#(virtual fac_if)::get(this, "", "fac_vif", cfg.fac_vif)) begin
             `uvm_fatal("NOVIF", "fac_vif not set in config_db")
         end
-        if (!uvm_config_db#(virtualמ wifi_if)::get(this, "", "wifi_vif", cfg.wifi_vif)) begin
+        if (!uvm_config_db#(virtual wifi_if)::get(this, "", "wifi_vif", cfg.wifi_vif)) begin
             `uvm_fatal("NOVIF", "wifi_vif not set in config_db")
         end
         if (!uvm_config_db#(virtual bt_if)::get(this, "", "bt_vif", cfg.bt_vif)) begin
