@@ -1,3 +1,6 @@
+`ifndef SHARED_MEMORY_COVERAGE_SV
+`define SHARED_MEMORY_COVERAGE_SV
+
 `uvm_analysis_imp_decl(_cov_fac)
 `uvm_analysis_imp_decl(_cov_wifi)
 `uvm_analysis_imp_decl(_cov_bt)
@@ -285,3 +288,5 @@ class shared_memory_coverage extends uvm_component;
     endfunction
 
 endclass
+
+`endif // SHARED_MEMORY_COVERAGE_SV
