@@ -15,23 +15,6 @@ class test_wifi_split extends shared_memory_base_test;
         end
     endfunction
 
-    task automatic check_pass(string test_name, int unsigned errors_at_start);
-        repeat (10) @(ctrl_vif.mon_cb);
-
-        if (env.scoreboard.get_mismatch_count() != 0) begin
-            `uvm_error("TEST", $sformatf(
-                "%s: scoreboard reported %0d mismatch(es)",
-                test_name, env.scoreboard.get_mismatch_count()
-            ))
-        end else begin
-            `uvm_info("TEST", $sformatf("%s: scoreboard reports no mismatches - PASS", test_name), UVM_LOW)
-        end
-
-        if (uvm_report_server::get_server().get_severity_count(UVM_ERROR) > errors_at_start) begin
-            `uvm_error("TEST", $sformatf("Unexpected UVM_ERROR(s) during %s", test_name))
-        end
-    endtask
-
     task run_phase(uvm_phase phase);
         select_interface_seq  sel_seq;
         wifi_write_word_seq   wifi_seq;
