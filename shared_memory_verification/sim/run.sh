@@ -1,21 +1,16 @@
 #!/bin/bash
-# Shared Memory UVM — Xcelium run script
+# Shared Memory UVM — 3 דברים:
 #
-# Usage:
-#   ./sim/run.sh                  # test_sanity_fac (default)
-#   ./sim/run.sh wifi             # test_wifi_split
-#   ./sim/run.sh bt               # test_bt_split
-#   ./sim/run.sh all              # regression (all 3 tests)
-#   ./sim/run.sh --clean wifi     # clean compile + run
-#   ./sim/run.sh --imc all        # regression + IMC coverage DB
-#
-# Run from project root (shared_memory_verification/) or anywhere.
+#   ./sim/run.sh                 # 1) כל הטסטים (מ-regression.list)
+#   ./sim/regression.sh          # 2) coverage regression + IMC
+#   ./sim/run.sh waves wifi      # 3) גלים
+
+COV_REG_TEST="test_coverage_regression"
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Find project root (directory that contains tb/top/shared_memory_tb.sv)
 find_project_root() {
     local dir="$1"
     while [ "$dir" != "/" ]; do
@@ -31,192 +26,215 @@ find_project_root() {
 ROOT="$(cd "$(find_project_root "$SCRIPT_DIR")" && pwd)"
 cd "$ROOT"
 
-echo "Project root: $ROOT"
+LOG_DIR="$ROOT/sim/logs"
+REG_LIST="$ROOT/sim/regression.list"
+WAVES_TCL="$ROOT/sim/waves.tcl"
 
-# --- resolve filenames (server may use typo names) ---
-resolve_file() {
-    local candidate
-    for candidate in "$@"; do
-        if [ -f "$candidate" ]; then
-            echo "$candidate"
-            return 0
-        fi
-    done
-    return 1
+show_help() {
+    cat <<'EOF'
+Shared Memory — sim/run.sh
+
+  1) הרצת כל הטסטים (batch) — קורא מ-regression.list:
+       ./sim/run.sh
+       ./sim/run.sh all --clean
+
+  2) Coverage regression + IMC — טסט אחד שמכיל הכל:
+       ./sim/regression.sh
+       ./sim/regression.sh --clean
+     (מריץ test_coverage_regression = FAC + WiFi + BT)
+     ב-IMC: Reports -> Functional -> CoverGroup Summary
+
+  3) גלים (SimVision):
+       ./sim/run.sh waves wifi
+
+  קבצים ב-sim/:
+       run.sh            — הרצת כל הטסטים / גלים
+       regression.sh     — coverage regression + IMC
+       regression.list   — רשימת טסטים ל-run.sh all
+       waves.tcl         — probes לגלים
+EOF
 }
 
 resolve_fac_pkg() {
-    local found candidate
-    for candidate in \
-        tb/agents/fac/fac_agent.pkg.sv \
-        tb/agents/fac/fac_agent_pkg.sv \
-        agents/fac/fac_agent.pkg.sv \
-        agents/fac/fac_agent_pkg.sv; do
-        if [ -f "$candidate" ]; then
-            echo "$candidate"
-            return 0
-        fi
+    local candidate found
+    for candidate in tb/agents/fac/fac_agent.pkg.sv tb/agents/fac/fac_agent_pkg.sv; do
+        [ -f "$candidate" ] && { echo "$candidate"; return 0; }
     done
-    found="$(find . -path '*/fac/fac_agent*.sv' -o -path '*/fac/fac_agent.pkg.sv' 2>/dev/null | head -1)"
-    if [ -n "$found" ] && [ -f "$found" ]; then
-        echo "$found"
-        return 0
-    fi
-    echo "ERROR: fac agent package not found." >&2
-    echo "  Looked in: tb/agents/fac/" >&2
-    if [ -d tb/agents/fac ]; then
-        echo "  Found in tb/agents/fac/:" >&2
-        ls -1 tb/agents/fac/ >&2
-    else
-        echo "  Directory tb/agents/fac/ does not exist." >&2
-        echo "  Make sure you run from shared_memory_verification/ (with rtl/ and tb/)." >&2
-    fi
+    found="$(find . -path '*/fac/fac_agent*.sv' 2>/dev/null | head -1)"
+    [ -n "$found" ] && { echo "$found"; return 0; }
+    echo "ERROR: fac agent package not found" >&2
     exit 1
 }
 
 resolve_bt_if() {
     local candidate
     for candidate in rtl/bt_wirte_if.sv rtl/bt_write_if.sv; do
-        if [ -f "$candidate" ]; then
-            echo "$candidate"
-            return 0
-        fi
+        [ -f "$candidate" ] && { echo "$candidate"; return 0; }
     done
-    echo "ERROR: BT interface file not found (bt_wirte_if.sv or bt_write_if.sv)." >&2
+    echo "ERROR: bt_write_if.sv not found" >&2
     exit 1
 }
 
 FAC_PKG="$(resolve_fac_pkg)"
 BT_IF="$(resolve_bt_if)"
 
-# --- defaults ---
-TEST_ARG="sanity"
-DO_CLEAN=0
-ENABLE_IMC=0
+map_test() {
+    case "$1" in
+        sanity|fac) echo "test_sanity_fac" ;;
+        wifi)       echo "test_wifi_split" ;;
+        bt)         echo "test_bt_split" ;;
+        *)          echo "$1" ;;
+    esac
+}
 
-# --- parse args ---
+load_tests() {
+    local -a tests=() line trimmed
+    [ -f "$REG_LIST" ] || { echo "sanity wifi bt"; return; }
+    while IFS= read -r line || [ -n "$line" ]; do
+        trimmed="${line%%#*}"
+        trimmed="$(echo "$trimmed" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+        [ -z "$trimmed" ] && continue
+        tests+=("$trimmed")
+    done < "$REG_LIST"
+    [ "${#tests[@]}" -gt 0 ] || { echo "ERROR: $REG_LIST is empty" >&2; exit 1; }
+    echo "${tests[@]}"
+}
+
+run_xrun() {
+    local uvm_test="$1"
+    shift
+    xrun -sv -uvm -timescale 1ns/1ps -access +rwc "$@" \
+        -incdir rtl -incdir tb/agents/fac -incdir tb/agents/wifi \
+        -incdir tb/agents/bt -incdir tb/agents/read -incdir tb/interfaces \
+        -incdir tb/envs -incdir tb/seqs -incdir tb/tests \
+        rtl/shared_memory_pkg.sv "$FAC_PKG" \
+        tb/agents/wifi/wifi_agent_pkg.sv tb/agents/bt/bt_agent_pkg.sv \
+        tb/agents/read/read_agent_pkg.sv tb/envs/shared_memory_env_pkg.sv \
+        tb/seqs/fac_seq_pkg.sv tb/seqs/wifi_seq_pkg.sv tb/seqs/bt_seq_pkg.sv \
+        tb/seqs/read_seq_pkg.sv tb/seqs/common_seq_pkg.sv \
+        tb/tests/shared_memory_test_pkg.sv \
+        rtl/async_fifo.sv "$BT_IF" \
+        rtl/fac_write_if.sv rtl/wifi_write_if.sv rtl/dual_port_ram.sv \
+        rtl/interface_mux.sv rtl/mem_status_ctrl.sv rtl/read_ctrl.sv \
+        rtl/shared_memory.sv rtl/write_ctrl.sv \
+        tb/agents/fac/fac_if.sv tb/agents/wifi/wifi_if.sv \
+        tb/agents/bt/bt_if.sv tb/agents/read/read_if.sv \
+        tb/interfaces/ctrl_if.sv tb/top/shared_memory_tb.sv \
+        +UVM_TESTNAME="$uvm_test"
+}
+
+# --- 1) כל הטסטים (batch) ---
+run_all_tests() {
+    local -a tests=("$@")
+    local t uvm pass=0 fail=0 log=""
+    for t in "${tests[@]}"; do
+        uvm="$(map_test "$t")"
+        echo "========== $uvm =========="
+        if run_xrun "$uvm" -batch; then pass=$((pass + 1)); else fail=$((fail + 1)); fi
+    done
+    echo "========== PASS=$pass  FAIL=$fail =========="
+    [ "$fail" -eq 0 ]
+}
+
+# --- 2) Coverage regression: טסט אחד (FAC+WiFi+BT) + coverage + IMC ---
+run_regression() {
+    local uvm="$COV_REG_TEST"
+    local log="$LOG_DIR/${uvm}.log"
+
+    rm -rf cov_work
+    mkdir -p "$LOG_DIR"
+
+    echo "========== $uvm (FAC + WiFi + BT + coverage) =========="
+    echo "  Source: tb/tests/test_coverage_regression.sv"
+    run_xrun "$uvm" -batch -l "$log" \
+        -coverage functional -covworkdir cov_work -covtest "$uvm" -covoverwrite
+
+    print_cov_summary
+}
+
+print_cov_summary() {
+    local log
+    echo ""
+    echo "========== [COV] summary =========="
+    for log in "$LOG_DIR"/test_*.log; do
+        [ -f "$log" ] || continue
+        echo "--- $(basename "$log" .log) ---"
+        grep '\[COV\]' "$log" || echo "(no [COV] lines)"
+    done
+    echo "=================================="
+}
+
+open_imc() {
+    local dir="$ROOT/cov_work/scope/$COV_REG_TEST"
+
+    command -v imc >/dev/null 2>&1 || { echo "ERROR: imc not in PATH" >&2; exit 1; }
+    [ -n "${DISPLAY:-}" ]         || { echo "ERROR: DISPLAY not set (need X11)" >&2; exit 1; }
+    [ -d "$dir" ] && compgen -G "$dir/*.ucd" >/dev/null 2>&1 || {
+        echo "ERROR: no coverage DB at $dir" >&2
+        echo "Run first: ./sim/regression.sh --clean" >&2
+        exit 1
+    }
+
+    echo "Opening IMC: $dir"
+    mkdir -p "$LOG_DIR"
+    imc -load "$dir" -gui 2>&1 | tee "$LOG_DIR/imc.log" &
+
+    local pid=$!
+    sleep 4
+    if kill -0 "$pid" 2>/dev/null; then
+        echo "IMC running (PID $pid)."
+        echo "  Reports -> Functional -> CoverGroup Summary"
+    else
+        echo "ERROR: IMC failed — see $LOG_DIR/imc.log" >&2
+        tail -15 "$LOG_DIR/imc.log" >&2
+        exit 1
+    fi
+}
+
+# --- 3) גלים ---
+run_waves() {
+    local uvm_test="$1"
+    [ -f "$WAVES_TCL" ] || { echo "ERROR: missing $WAVES_TCL" >&2; exit 1; }
+    [ -n "${DISPLAY:-}" ] || { echo "ERROR: DISPLAY not set" >&2; exit 1; }
+    mkdir -p "$ROOT/waves"
+    echo "========== $uvm_test (waves) =========="
+    run_xrun "$uvm_test" -gui -input "$WAVES_TCL"
+}
+
+# ---------------------------------------------------------------------------
+CMD="all"
+WAVE_TEST="sanity"
+DO_CLEAN=0
+
 while [ $# -gt 0 ]; do
     case "$1" in
-        -h|--help)
-            sed -n '2,14p' "$0" | sed 's/^# \?//'
-            exit 0
-            ;;
-        --clean)
-            DO_CLEAN=1
-            shift
-            ;;
-        --imc)
-            ENABLE_IMC=1
-            shift
-            ;;
-        sanity|sanity_fac|fac|test_sanity_fac)
-            TEST_ARG="sanity"
-            shift
-            ;;
-        wifi|wifi_split|test_wifi_split)
-            TEST_ARG="wifi"
-            shift
-            ;;
-        bt|bt_split|test_bt_split)
-            TEST_ARG="bt"
-            shift
-            ;;
-        all|regression)
-            TEST_ARG="all"
-            shift
-            ;;
+        -h|--help)        show_help; exit 0 ;;
+        --clean)          DO_CLEAN=1; shift ;;
+        all)              CMD="all"; shift ;;
+        regression|cov)   CMD="regression"; shift ;;
+        waves|gui)        CMD="waves"; shift ;;
+        sanity|fac|wifi|bt) WAVE_TEST="$1"; shift ;;
         *)
-            echo "Unknown argument: $1" >&2
-            echo "Run: ./sim/run.sh --help" >&2
+            echo "Unknown: $1  (try: ./sim/run.sh --help)" >&2
             exit 1
             ;;
     esac
 done
 
-map_test_name() {
-    case "$1" in
-        sanity) echo "test_sanity_fac" ;;
-        wifi)   echo "test_wifi_split" ;;
-        bt)     echo "test_bt_split"  ;;
-        *)      echo "$1" ;;
-    esac
-}
+echo "Project: $ROOT"
+[ "$DO_CLEAN" = "1" ] && { echo "Cleaning xcelium.d ..."; rm -rf xcelium.d; }
 
-run_one_test() {
-    local uvm_test="$1"
-    local cov_flags=""
+read -r -a TESTS <<< "$(load_tests)"
 
-    if [ "$ENABLE_IMC" = "1" ]; then
-        cov_flags="-coverage all -covoverwrite -covdut shared_memory"
-    fi
-
-    echo "============================================================"
-    echo " Running: $uvm_test"
-    echo " Project: $ROOT"
-    echo "============================================================"
-
-    xrun -sv -uvm -timescale 1ns/1ps -access +rwc -batch \
-        $cov_flags \
-        -incdir rtl \
-        -incdir tb/agents/fac \
-        -incdir tb/agents/wifi \
-        -incdir tb/agents/bt \
-        -incdir tb/agents/read \
-        -incdir tb/interfaces \
-        -incdir tb/envs \
-        -incdir tb/seqs \
-        -incdir tb/tests \
-        rtl/shared_memory_pkg.sv \
-        "$FAC_PKG" \
-        tb/agents/wifi/wifi_agent_pkg.sv \
-        tb/agents/bt/bt_agent_pkg.sv \
-        tb/agents/read/read_agent_pkg.sv \
-        tb/envs/shared_memory_env_pkg.sv \
-        tb/seqs/fac_seq_pkg.sv \
-        tb/seqs/wifi_seq_pkg.sv \
-        tb/seqs/bt_seq_pkg.sv \
-        tb/seqs/read_seq_pkg.sv \
-        tb/seqs/common_seq_pkg.sv \
-        tb/tests/shared_memory_test_pkg.sv \
-        rtl/async_fifo.sv \
-        "$BT_IF" \
-        rtl/fac_write_if.sv \
-        rtl/wifi_write_if.sv \
-        rtl/dual_port_ram.sv \
-        rtl/interface_mux.sv \
-        rtl/mem_status_ctrl.sv \
-        rtl/read_ctrl.sv \
-        rtl/shared_memory.sv \
-        rtl/write_ctrl.sv \
-        tb/agents/fac/fac_if.sv \
-        tb/agents/wifi/wifi_if.sv \
-        tb/agents/bt/bt_if.sv \
-        tb/agents/read/read_if.sv \
-        tb/interfaces/ctrl_if.sv \
-        tb/top/shared_memory_tb.sv \
-        +UVM_TESTNAME="$uvm_test"
-}
-
-if [ "$DO_CLEAN" = "1" ]; then
-    echo "Cleaning xcelium.d ..."
-    rm -rf xcelium.d
-fi
-
-if [ "$TEST_ARG" = "all" ]; then
-    PASS=0
-    FAIL=0
-    for t in sanity wifi bt; do
-        uvm_test="$(map_test_name "$t")"
-        if run_one_test "$uvm_test"; then
-            PASS=$((PASS + 1))
-        else
-            FAIL=$((FAIL + 1))
-        fi
-    done
-    echo "============================================================"
-    echo " Regression done: PASS=$PASS  FAIL=$FAIL"
-    echo "============================================================"
-    [ "$FAIL" -eq 0 ]
-else
-    run_one_test "$(map_test_name "$TEST_ARG")"
-fi
+case "$CMD" in
+    all)
+        run_all_tests "${TESTS[@]}"
+        ;;
+    regression)
+        run_regression
+        open_imc
+        ;;
+    waves)
+        run_waves "$(map_test "$WAVE_TEST")"
+        ;;
+esac

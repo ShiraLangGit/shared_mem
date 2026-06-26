@@ -27,7 +27,6 @@ class read_monitor extends uvm_monitor;
             if (vif.rd_en && !rd_en_prev) begin
                 bit [31:0] addr = vif.addr;
 
-                // rd_en -> ram_rd_en (reg) -> 2-cycle RAM -> o_data on rd_en_d4
                 do @(posedge vif.clk); while (!vif.data_valid);
                 @(posedge vif.clk);
 
