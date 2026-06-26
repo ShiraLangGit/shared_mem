@@ -6,7 +6,7 @@
 #
 # מה זה עושה:
 #   1. מריץ test_coverage_regression (FAC + WiFi + BT בסימולציה אחת)
-#   2. אוסף functional coverage
+#   2. אוסף functional + code coverage (RTL DUT)
 #   3. פותח IMC
 #
 # לבדיקת כל טסט בנפרד (בלי coverage):  ./sim/run.sh

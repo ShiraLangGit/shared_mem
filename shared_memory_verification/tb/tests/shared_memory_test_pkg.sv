@@ -1,3 +1,5 @@
+`timescale 1ns/1ps
+
 package shared_memory_test_pkg;
 
     import uvm_pkg::*;

@@ -6,10 +6,13 @@
 #   ./sim/run.sh waves wifi      # 3) גלים
 
 COV_REG_TEST="test_coverage_regression"
+COV_DUT="shared_memory"
+COV_TYPES="functional+block+expr+toggle+fsm"
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COV_FILE="$SCRIPT_DIR/coverage.ccf"
 
 find_project_root() {
     local dir="$1"
@@ -38,11 +41,14 @@ Shared Memory — sim/run.sh
        ./sim/run.sh
        ./sim/run.sh all --clean
 
-  2) Coverage regression + IMC — טסט אחד שמכיל הכל:
+  2) Coverage regression + IMC — functional + code coverage:
        ./sim/regression.sh
        ./sim/regression.sh --clean
-     (מריץ test_coverage_regression = FAC + WiFi + BT)
-     ב-IMC: Reports -> Functional -> CoverGroup Summary
+     (test_coverage_regression; code cov on RTL DUT only)
+     IMC: Metrics (Block/Statement/...) + Reports -> Functional -> CoverGroup Summary
+
+  2b) לפתוח IMC בלבד (אחרי שכבר רצת regression):
+       ./sim/run.sh imc
 
   3) גלים (SimVision):
        ./sim/run.sh waves wifi
@@ -149,10 +155,14 @@ run_regression() {
     rm -rf cov_work
     mkdir -p "$LOG_DIR"
 
-    echo "========== $uvm (FAC + WiFi + BT + coverage) =========="
+    echo "========== $uvm (functional + code coverage on $COV_DUT) =========="
     echo "  Source: tb/tests/test_coverage_regression.sv"
+    echo "  Types:  $COV_TYPES"
     run_xrun "$uvm" -batch -l "$log" \
-        -coverage functional -covworkdir cov_work -covtest "$uvm" -covoverwrite
+        -coverage "$COV_TYPES" \
+        -covfile "$COV_FILE" \
+        -covdut "$COV_DUT" \
+        -covworkdir cov_work -covtest "$uvm" -covoverwrite
 
     print_cov_summary
 }
@@ -188,7 +198,8 @@ open_imc() {
     sleep 4
     if kill -0 "$pid" 2>/dev/null; then
         echo "IMC running (PID $pid)."
-        echo "  Reports -> Functional -> CoverGroup Summary"
+        echo "  Code:       Metrics tab -> Block / Statement / Expression / Toggle / FSM"
+        echo "  Functional: Reports -> Functional -> CoverGroup Summary"
     else
         echo "ERROR: IMC failed — see $LOG_DIR/imc.log" >&2
         tail -15 "$LOG_DIR/imc.log" >&2
@@ -218,6 +229,7 @@ while [ $# -gt 0 ]; do
         --clean)          DO_CLEAN=1; shift ;;
         all)              CMD="all"; shift ;;
         regression|cov)   CMD="regression"; shift ;;
+        imc)              CMD="imc"; shift ;;
         waves|gui)        CMD="waves"; shift ;;
         sanity|fac|wifi|bt|signature|addr_sig|addr_signature)
             if [ "$CMD" = "waves" ]; then
@@ -248,6 +260,9 @@ case "$CMD" in
         ;;
     regression)
         run_regression
+        open_imc
+        ;;
+    imc)
         open_imc
         ;;
     waves)
