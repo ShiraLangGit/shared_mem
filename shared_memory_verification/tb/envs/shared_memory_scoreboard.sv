@@ -32,6 +32,22 @@ class shared_memory_scoreboard extends uvm_scoreboard;
         return mismatch_count;
     endfunction
 
+    // If read data matches a different tracked address, report address aliasing.
+    function bit find_alias_addr(
+        input  bit [31:0] data,
+        input  bit [31:0] req_addr,
+        output bit [31:0] alias_addr
+    );
+        alias_addr = '0;
+        foreach (mem[tracked_addr]) begin
+            if (tracked_addr != req_addr && mem[tracked_addr] === data) begin
+                alias_addr = tracked_addr;
+                return 1'b1;
+            end
+        end
+        return 1'b0;
+    endfunction
+
     function void write_fac(fac_seq_item t);
         if (t.data.size() == 0) begin
             `uvm_warning("SCB", $sformatf("FAC txn with no data @ 0x%08h", t.start_addr))
@@ -72,11 +88,20 @@ class shared_memory_scoreboard extends uvm_scoreboard;
         end
 
         if (mem[t.addr] !== t.data) begin
+            bit [31:0] alias_addr;
+
             mismatch_count++;
-            `uvm_error("SCB", $sformatf(
-                "Data mismatch @ 0x%08h: expected=0x%08h, read=0x%08h",
-                t.addr, mem[t.addr], t.data
-            ))
+            if (find_alias_addr(t.data, t.addr, alias_addr)) begin
+                `uvm_error("SCB", $sformatf(
+                    "Address aliasing @ 0x%08h: got 0x%08h which belongs to mem[0x%08h] (expected 0x%08h)",
+                    t.addr, t.data, alias_addr, mem[t.addr]
+                ))
+            end else begin
+                `uvm_error("SCB", $sformatf(
+                    "Data mismatch @ 0x%08h: expected=0x%08h, read=0x%08h",
+                    t.addr, mem[t.addr], t.data
+                ))
+            end
         end else begin
             `uvm_info("SCB", $sformatf(
                 "Read check passed @ 0x%08h: 0x%08h",

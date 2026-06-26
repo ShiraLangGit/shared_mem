@@ -1,10 +1,12 @@
 # regression.list — ./sim/run.sh all
 #   sanity  -> test_sanity_fac
 #   wifi    -> test_wifi_split
-#   bt      -> test_bt_split
+#   bt         -> test_bt_split
+#   signature  -> test_addr_signature
 #
 # Coverage + IMC:  ./sim/regression.sh  (test_coverage_regression)
 
 sanity
 wifi
 bt
+signature

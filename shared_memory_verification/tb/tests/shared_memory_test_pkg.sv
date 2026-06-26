@@ -15,5 +15,6 @@ package shared_memory_test_pkg;
     `include "test_wifi_split.sv"
     `include "test_bt_split.sv"
     `include "test_coverage_regression.sv"
+    `include "test_addr_signature.sv"
 
 endpackage

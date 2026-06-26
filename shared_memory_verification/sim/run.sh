@@ -47,6 +47,10 @@ Shared Memory — sim/run.sh
   3) גלים (SimVision):
        ./sim/run.sh waves wifi
 
+  4) טסט בודד:
+       ./sim/run.sh sanity --clean
+       ./sim/run.sh signature --clean
+
   קבצים ב-sim/:
        run.sh            — הרצת כל הטסטים / גלים
        regression.sh     — coverage regression + IMC
@@ -83,6 +87,7 @@ map_test() {
         sanity|fac) echo "test_sanity_fac" ;;
         wifi)       echo "test_wifi_split" ;;
         bt)         echo "test_bt_split" ;;
+        signature|addr_sig|addr_signature) echo "test_addr_signature" ;;
         *)          echo "$1" ;;
     esac
 }
@@ -204,6 +209,7 @@ run_waves() {
 # ---------------------------------------------------------------------------
 CMD="all"
 WAVE_TEST="sanity"
+SINGLE_TEST=""
 DO_CLEAN=0
 
 while [ $# -gt 0 ]; do
@@ -213,7 +219,14 @@ while [ $# -gt 0 ]; do
         all)              CMD="all"; shift ;;
         regression|cov)   CMD="regression"; shift ;;
         waves|gui)        CMD="waves"; shift ;;
-        sanity|fac|wifi|bt) WAVE_TEST="$1"; shift ;;
+        sanity|fac|wifi|bt|signature|addr_sig|addr_signature)
+            if [ "$CMD" = "waves" ]; then
+                WAVE_TEST="$1"
+            else
+                CMD="single"
+                SINGLE_TEST="$1"
+            fi
+            shift ;;
         *)
             echo "Unknown: $1  (try: ./sim/run.sh --help)" >&2
             exit 1
@@ -229,6 +242,9 @@ read -r -a TESTS <<< "$(load_tests)"
 case "$CMD" in
     all)
         run_all_tests "${TESTS[@]}"
+        ;;
+    single)
+        run_xrun "$(map_test "$SINGLE_TEST")" -batch
         ;;
     regression)
         run_regression

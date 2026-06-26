@@ -47,8 +47,13 @@ class test_bt_split extends shared_memory_base_test;
         repeat (200) @(ctrl_vif.mon_cb);
 
         bt_seq = bt_write_word_seq::type_id::create("bt_seq");
-        bt_seq.addr = base_addr;
-        bt_seq.data = 96'h1122_3344_5566_7788_99AA_BBCC;
+        if (!bt_seq.randomize() with { addr == local::base_addr; }) begin
+            `uvm_fatal("RAND", "bt_write_word_seq randomize failed")
+        end
+        `uvm_info("TEST", $sformatf(
+            "test_bt_split: BT write @ 0x%08h data=0x%024h",
+            bt_seq.addr, bt_seq.data
+        ), UVM_LOW)
         bt_seq.start(env.bt_agent.sqr);
 
         idle_seq = wait_idle_seq::type_id::create("idle_seq");

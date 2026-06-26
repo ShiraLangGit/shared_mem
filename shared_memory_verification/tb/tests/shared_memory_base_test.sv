@@ -9,6 +9,11 @@ class shared_memory_base_test extends uvm_test;
         super.new(name, parent);
     endfunction
 
+    // Unique per-address pattern: if RTL reads B while A was requested, scoreboard catches it.
+    static function bit [31:0] addr_signature(bit [31:0] addr);
+        return {addr[15:0], ~addr[15:0]};
+    endfunction
+
     function void build_phase(uvm_phase phase);
         super.build_phase(phase);
 

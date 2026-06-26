@@ -46,8 +46,13 @@ class test_wifi_split extends shared_memory_base_test;
         repeat (200) @(ctrl_vif.mon_cb);
 
         wifi_seq = wifi_write_word_seq::type_id::create("wifi_seq");
-        wifi_seq.addr = base_addr;
-        wifi_seq.data = 64'hCAFE_BABE_DEAD_BEEF;
+        if (!wifi_seq.randomize() with { addr == local::base_addr; }) begin
+            `uvm_fatal("RAND", "wifi_write_word_seq randomize failed")
+        end
+        `uvm_info("TEST", $sformatf(
+            "test_wifi_split: WiFi write @ 0x%08h data=0x%016h",
+            wifi_seq.addr, wifi_seq.data
+        ), UVM_LOW)
         wifi_seq.start(env.wifi_agent.sqr);
 
         idle_seq = wait_idle_seq::type_id::create("idle_seq");

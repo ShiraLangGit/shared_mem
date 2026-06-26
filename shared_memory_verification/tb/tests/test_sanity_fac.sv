@@ -26,8 +26,6 @@ class test_sanity_fac extends shared_memory_base_test;
 
         phase.raise_objection(this);
 
-        `uvm_info("TEST", "test_sanity_fac: FAC write + readback @ 0x10", UVM_LOW)
-
         sel_seq = select_interface_seq::type_id::create("sel_seq");
         if (!sel_seq.randomize() with { sel == SEL_FAC; }) begin
             `uvm_fatal("RAND", "select_interface_seq randomize failed")
@@ -37,8 +35,13 @@ class test_sanity_fac extends shared_memory_base_test;
         repeat (200) @(ctrl_vif.mon_cb);
 
         fac_seq = fac_write_word_seq::type_id::create("fac_seq");
-        fac_seq.addr = 32'h10;
-        fac_seq.data = 32'hA5A5_5A5A;
+        if (!fac_seq.randomize() with { addr == 32'h10; }) begin
+            `uvm_fatal("RAND", "fac_write_word_seq randomize failed")
+        end
+        `uvm_info("TEST", $sformatf(
+            "test_sanity_fac: FAC write + readback @ 0x%08h data=0x%08h",
+            fac_seq.addr, fac_seq.data
+        ), UVM_LOW)
         fac_seq.start(env.fac_agent.sqr);
 
         idle_seq = wait_idle_seq::type_id::create("idle_seq");
@@ -47,7 +50,7 @@ class test_sanity_fac extends shared_memory_base_test;
         repeat (100) @(ctrl_vif.mon_cb);
 
         read_seq = read_word_seq::type_id::create("read_seq");
-        read_seq.addr = 32'h10;
+        read_seq.addr = fac_seq.addr;
         read_seq.start(env.read_agent.sqr);
 
         idle_seq = wait_idle_seq::type_id::create("idle_seq2");
