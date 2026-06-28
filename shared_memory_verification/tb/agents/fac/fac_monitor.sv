@@ -18,31 +18,27 @@ class fac_monitor extends uvm_monitor;
     endfunction
 
     task run_phase(uvm_phase phase);
-        fac_seq_item beat;
-        bit [31:0]  burst_addr;
-        bit         in_burst;
+        fac_seq_item burst;
+        bit in_burst;
 
         forever begin
             @(vif.mon_cb);
 
             if (vif.mon_cb.wr_en && vif.mon_cb.data_valid && vif.mon_cb.ready) begin
-                beat = fac_seq_item::type_id::create("beat");
-                beat.beat_count = 1;
-                beat.data         = new[1];
-
                 if (!in_burst) begin
-                    burst_addr      = vif.mon_cb.start_addr;
-                    beat.start_addr = burst_addr;
-                    in_burst        = 1'b1;
+                    burst = fac_seq_item::type_id::create("burst");
+                    burst.start_addr = vif.mon_cb.start_addr;
+                    burst.beat_count = 1;
+                    burst.data       = new[1];
+                    burst.data[0]    = vif.mon_cb.data;
+                    in_burst         = 1'b1;
                 end else begin
-                    beat.start_addr = burst_addr;
+                    burst.beat_count++;
+                    burst.data = new[burst.beat_count](burst.data);
+                    burst.data[burst.beat_count - 1] = vif.mon_cb.data;
                 end
-
-                beat.data[0] = vif.mon_cb.data;
-                ap.write(beat);
-
-                burst_addr += 32'd1;
-            end else if (!vif.mon_cb.wr_en || !vif.mon_cb.data_valid) begin
+            end else if (in_burst && (!vif.mon_cb.wr_en || !vif.mon_cb.data_valid)) begin
+                ap.write(burst);
                 in_burst = 1'b0;
             end
         end

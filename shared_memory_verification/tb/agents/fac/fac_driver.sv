@@ -51,7 +51,7 @@ class fac_driver extends uvm_driver #(fac_seq_item);
         `uvm_info("FAC_DRV", $sformatf("Driving %s", req.convert2string()), UVM_MEDIUM)
 
         for (i = 0; i < req.beat_count; i++) begin
-            drive_beat(req.start_addr, req.data[i], (i == 0));
+            drive_beat(req.start_addr + i, req.data[i], (i == 0));
         end
 
         @(vif.drv_cb);

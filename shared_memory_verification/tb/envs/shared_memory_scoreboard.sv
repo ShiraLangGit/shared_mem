@@ -53,8 +53,12 @@ class shared_memory_scoreboard extends uvm_scoreboard;
             `uvm_warning("SCB", $sformatf("FAC txn with no data @ 0x%08h", t.start_addr))
             return;
         end
-        mem[t.start_addr] = t.data[0];
-        `uvm_info("SCB", $sformatf("FAC write mem[0x%08h] = 0x%08h", t.start_addr, t.data[0]), UVM_HIGH)
+        for (int unsigned i = 0; i < t.data.size(); i++) begin
+            mem[t.start_addr + i] = t.data[i];
+            `uvm_info("SCB", $sformatf(
+                "FAC write mem[0x%08h] = 0x%08h", t.start_addr + i, t.data[i]
+            ), UVM_HIGH)
+        end
     endfunction
 
     function void write_wifi(wifi_seq_item t);

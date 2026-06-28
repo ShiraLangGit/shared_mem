@@ -6,5 +6,6 @@ package common_seq_pkg;
 
     `include "select_interface_seq.sv"
     `include "wait_idle_seq.sv"
+    `include "error_clear_seq.sv"
 
 endpackage

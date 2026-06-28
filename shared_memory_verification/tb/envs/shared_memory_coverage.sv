@@ -118,10 +118,11 @@ class shared_memory_coverage extends uvm_component;
         cross_if_beats: cross cp_if, cp_beats {
             bins cross_fac_one   = binsof(cp_if.if_fac)  && binsof(cp_beats.beats_one);
             bins cross_fac_multi = binsof(cp_if.if_fac)  && binsof(cp_beats.beats_multi);
-            bins cross_wifi_one  = binsof(cp_if.if_wifi) && binsof(cp_beats.beats_one);
             bins cross_wifi_multi= binsof(cp_if.if_wifi) && binsof(cp_beats.beats_multi);
-            bins cross_bt_one    = binsof(cp_if.if_bt)   && binsof(cp_beats.beats_one);
             bins cross_bt_multi  = binsof(cp_if.if_bt)   && binsof(cp_beats.beats_multi);
+            // WiFi is always 2 beats, BT always 3 — beats_one crosses are unreachable.
+            ignore_bins wifi_one_unreach = binsof(cp_if.if_wifi) && binsof(cp_beats.beats_one);
+            ignore_bins bt_one_unreach   = binsof(cp_if.if_bt)   && binsof(cp_beats.beats_one);
         }
     endgroup
 
@@ -201,9 +202,7 @@ class shared_memory_coverage extends uvm_component;
         cg_write_ops.add_bin("beats_multi");
         cg_write_ops.add_bin("cross_fac_one");
         cg_write_ops.add_bin("cross_fac_multi");
-        cg_write_ops.add_bin("cross_wifi_one");
         cg_write_ops.add_bin("cross_wifi_multi");
-        cg_write_ops.add_bin("cross_bt_one");
         cg_write_ops.add_bin("cross_bt_multi");
 
         cg_read_ops = new();
@@ -297,9 +296,9 @@ class shared_memory_coverage extends uvm_component;
         if (if_id == 0)
             cross_bin = (beat_count == 1) ? "cross_fac_one" : "cross_fac_multi";
         else if (if_id == 1)
-            cross_bin = (beat_count == 1) ? "cross_wifi_one" : "cross_wifi_multi";
+            cross_bin = "cross_wifi_multi";
         else
-            cross_bin = (beat_count == 1) ? "cross_bt_one" : "cross_bt_multi";
+            cross_bin = "cross_bt_multi";
 
         cg_write_ops.sample_bin(cross_bin);
     endfunction
@@ -351,6 +350,14 @@ class shared_memory_coverage extends uvm_component;
             end
         end
     endtask
+
+    function void sample_none_readback();
+        sample_read_after_write(3);
+    endfunction
+
+    function void sample_read_burst_ops(bit [31:0] addr, int unsigned beat_count);
+        sample_read_ops(addr, beat_count);
+    endfunction
 
     function void write_cov_fac(fac_seq_item t);
         last_write_if = 0;

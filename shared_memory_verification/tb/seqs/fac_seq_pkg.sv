@@ -5,5 +5,6 @@ package fac_seq_pkg;
     `include "uvm_macros.svh"
 
     `include "fac_write_word_seq.sv"
+    `include "fac_write_burst_seq.sv"
 
 endpackage
